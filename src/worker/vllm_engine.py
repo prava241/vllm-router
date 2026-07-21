@@ -3,7 +3,7 @@ import time
 from vllm import AsyncEngineArgs, AsyncLLMEngine
 from vllm.sampling_params import SamplingParams
 
-from models import *
+from src.models import *
 
 
 class VLLMModel:
@@ -23,7 +23,7 @@ class VLLMModel:
     async def generate(
         self,
         request: GenerateRequest,
-        dispatch_time: float
+        dispatch_latency: float
     ) -> GenerateResponse:
 
         sampling_params = SamplingParams(
@@ -78,7 +78,7 @@ class VLLMModel:
             text=completion.text,
             finish_reason=completion.finish_reason,
             metrics=GenerationMetrics(
-                dispatch_time=dispatch_time,
+                dispatch_latency=dispatch_latency,
                 timestamp=time.time(),
                 ttft=ttft,
                 total_latency=total_latency,

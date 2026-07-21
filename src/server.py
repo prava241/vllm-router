@@ -1,9 +1,9 @@
 # server.py
 
 from fastapi import FastAPI
-from controller import Controller
+from src.controller import Controller
 from pydantic import BaseModel
-from models import *
+from src.models import *
 
 app = FastAPI()
 controller = Controller()

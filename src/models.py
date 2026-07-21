@@ -38,7 +38,7 @@ class GenerateRequest(BaseModel):
     stop: list[str] | None = None
 
 class GenerationMetrics(BaseModel):
-    dispatch_time: float
+    dispatch_latency: float
     timestamp: float
     ttft: float
     total_latency: float

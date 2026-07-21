@@ -4,8 +4,8 @@ import argparse
 from fastapi import FastAPI, BackgroundTasks
 import httpx
 import asyncio
-from models import *
-from vllm_engine import (
+from src.models import *
+from src.worker.vllm_engine import (
     VLLMModel,
     GenerateRequest,
 )
@@ -141,8 +141,8 @@ async def heartbeat_loop():
 
 @app.post("/generate")
 async def generate(request: GenerateRequest):
-    dispatch_time = time.time() - request.timestamp
-    result = await MODEL.generate(request, dispatch_time)
+    dispatch_latency = time.time() - request.timestamp
+    result = await MODEL.generate(request, dispatch_latency)
     return result
 
 async def cleanup():
