@@ -3,8 +3,10 @@
 import time
 from queue import Queue
 from typing import Any, Literal, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 from enum import Enum
+import asyncio
 
 class Priority(Enum):
     LOW = 1
@@ -23,8 +25,8 @@ class WorkerInfo(BaseModel):
     address: str
     heartbeat: Heartbeat
 
-class GenerateRequest(BaseModel):
-    timestamp: float
+class UserRequest(BaseModel):
+    # timestamp: float
 
     prompt_token_ids: list[int]
     prompt: str | None = None
@@ -36,6 +38,17 @@ class GenerateRequest(BaseModel):
     top_p: float = 0.95
     top_k: int = -1
     stop: list[str] | None = None
+
+@dataclass(slots=True)
+class GenerateRequest:
+    request_id: str
+    priority: Priority
+    user_request: UserRequest
+    retries: int = 0
+    future: asyncio.Future = field(default_factory=asyncio.Future)
+    enqueue_time: float = field(default_factory=time.time)
+    scheduled_time: float | None = None
+    dispatch_time: float | None = None
 
 class GenerationMetrics(BaseModel):
     dispatch_latency: float
@@ -49,6 +62,7 @@ class GenerationMetrics(BaseModel):
     total_tokens: int
 
 class GenerateResponse(BaseModel):
+    request_id: str
     text: str
     finish_reason: str
     metrics: GenerationMetrics

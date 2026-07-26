@@ -22,7 +22,7 @@ class VLLMModel:
 
     async def generate(
         self,
-        request: GenerateRequest,
+        request: UserRequest,
         dispatch_latency: float
     ) -> GenerateResponse:
 

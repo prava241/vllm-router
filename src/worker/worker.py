@@ -140,7 +140,7 @@ async def heartbeat_loop():
         await asyncio.sleep(5)
 
 @app.post("/generate")
-async def generate(request: GenerateRequest):
+async def generate(request: UserRequest):
     dispatch_latency = time.time() - request.timestamp
     result = await MODEL.generate(request, dispatch_latency)
     return result

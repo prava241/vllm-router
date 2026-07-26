@@ -3,13 +3,24 @@
 import random, string
 from src.models import *
 import httpx
+import asyncio
+from dataclasses import dataclass, field
+import time
+import uuid
+
+MAX_RETRIES = 3
+def ema(old: float | None, new: float, alpha: float = 0.2) -> float:
+    if old is None:
+        return new
+    return alpha * new + (1 - alpha) * old
 
 class WorkerState:
-    def __init__(self, info: WorkerInfo) -> None:
+    def __init__(self, controller, info: WorkerInfo) -> None:
+        self.controller = controller
         self.address: str = info.address
 
-        self.active: list[Any] = []
-        self.queue: Queue[Any] = Queue()
+        self.queue = asyncio.Queue()
+        self.active = set()
         self.last_heartbeat: float = time.time()
 
         self.gpu_util: float
@@ -17,11 +28,15 @@ class WorkerState:
         self.mem_util: float
         
         # self.rolling_queue_length: float
-        self.rolling_dispatch_latency: float
-        self.rolling_return_latency: float
-        self.rolling_RTT: float
-        self.rolling_ttft: float
-        self.rolling_tps: float
+        self.rolling_dispatch_latency: float | None = None
+        self.rolling_return_latency: float | None = None
+        self.rolling_RTT: float | None = None
+        self.rolling_ttft: float | None = None
+        self.rolling_tps: float | None = None
+
+        self.dispatch_task = asyncio.create_task(
+            self.dispatch_loop()
+        )
 
     def record_heartbeat(self, heartbeat: Heartbeat) -> None:
         self.last_heartbeat = time.time()
@@ -29,8 +44,70 @@ class WorkerState:
         self.mem_remaining = heartbeat.mem_total - heartbeat.mem_used
         self.mem_util = heartbeat.mem_util
 
-    def record_completion(self, response: GenerateResponse):
-        pass
+    def record_completion(
+        self,
+        response: GenerateResponse,
+        rtt: float
+    ):
+        metrics : GenerationMetrics = response.metrics
+        return_time = time.time()
+        return_latency = return_time - metrics.timestamp
+
+        self.rolling_dispatch_latency = ema(
+            self.rolling_dispatch_latency,
+            metrics.dispatch_latency,
+        )
+
+        self.rolling_return_latency = ema(
+            self.rolling_return_latency,
+            return_latency,
+        )
+
+        self.rolling_RTT = ema(
+            self.rolling_RTT,
+            rtt,
+        )
+
+        self.rolling_ttft = ema(
+            self.rolling_ttft,
+            metrics.ttft,
+        )
+
+        self.rolling_tps = ema(
+            self.rolling_tps,
+            metrics.tps,
+        )
+
+    async def dispatch_loop(self):
+        async with httpx.AsyncClient(timeout=None) as client:
+            while True:
+                request = await self.queue.get()
+                request.dispatch_time = time.time()
+                self.active.add(request)
+                try:
+                    start = time.perf_counter()
+                    r = await client.post(
+                        f"{self.address}/generate",
+                        json=request.user_request.model_dump(),
+                    )
+                    end = time.perf_counter()
+                    r.raise_for_status()
+                    response = GenerateResponse.model_validate(
+                        r.json()
+                    )
+                    self.record_completion(
+                        response,
+                        rtt=end - start,
+                    )
+                    request.future.set_result(response)
+                except Exception as e:
+                    await self.controller.handle_failure(
+                        request,
+                        e,
+                    )
+                finally:
+                    self.active.discard(request)
+                    self.queue.task_done()
 
     @property
     def is_alive(self, timeout: float = 30.0) -> bool:
@@ -42,6 +119,10 @@ class Controller:
         self.workers: dict[str, WorkerState] = {}
         self.last_worker_id = 0
         self.alphabet = string.ascii_letters + string.digits
+        self.queue = asyncio.Queue() # change this to priority queue
+        self.scheduling_task = asyncio.create_task(
+            self.scheduler_loop()
+        )
 
     def register_user(self, priority):
         def generate_uid():
@@ -51,29 +132,56 @@ class Controller:
             user_id = generate_uid()
         self.users[user_id] = priority
         return user_id
-    
-    async def dispatch_request(self, worker_id, request):
-        worker = self.workers[worker_id]
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{worker.address}/generate",
-                json=request.model_dump()
-            )
-        worker.record_completion(response)
-        return response
 
     async def handle_request(
-        self,
+        self, 
         user_id,
-        request
+        user_request
     ):
-        priority = self.users[user_id]
-        worker_id = random.choice(
-            list(self.workers.keys())
+        request = GenerateRequest(
+            request_id=str(uuid.uuid4()),
+            priority = self.users[user_id],
+            user_request = user_request
         )
 
-        return await self.dispatch_request(worker_id, request)
+        await self.queue.put(request)
+        response = await request.future
+
+        queue_latency = (
+            request.scheduled_time
+            - request.enqueue_time
+        )
+
+        return response
+
+    async def scheduler_loop(self):
+        while True:
+            request = await self.queue.get()
+            worker = self.choose_worker(request)
+            request.scheduled_time = time.time()
     
+            await worker.queue.put(request)
+            self.queue.task_done()
+
+            # Could do priority checks, rate limits,
+            # resource allocation, etc. here
+
+    def choose_worker(self, request):
+        return random.choice(
+            list(self.workers.values())
+        )
+
+    async def handle_failure(
+        self,
+        request,
+        error,
+    ):
+        if request.retries < MAX_RETRIES:
+            request.retries += 1
+            await self.queue.put(request)
+            return
+        request.future.set_exception(error)
+
     def delete_user(self, user_id):
         del self.users[user_id]
     
@@ -83,20 +191,37 @@ class Controller:
         worker_id = generate_wid()
         while worker_id in self.users:
             worker_id = generate_wid()
-        self.workers[worker_id] = (WorkerState(info))
+        self.workers[worker_id] = (WorkerState(self, info))
         return worker_id
     
     def update_heartbeat(self, worker_id, heartbeat):
         self.workers[worker_id].record_heartbeat(heartbeat)
 
-    def reassign(self, tasks):
-        pass
+    async def heartbeat_loop(self):
+        while True:
+            dead_workers = []
+            for worker_id, worker in self.workers.items():
+                if not worker.is_alive:
+                    dead_workers.append(worker_id)
 
-    # TODO: run this in the background
-    def heartbeat_loop(self):
-        for worker_id, worker in self.workers.items():
-            if not worker.is_alive:
-                # reassign all tasks
-                # kill worker
-                # remove it from registry
-                pass
+            for worker_id in dead_workers:
+                worker = self.workers.pop(worker_id)
+                print(f"Worker {worker_id} timed out.")
+                await self.reassign_worker(worker)
+
+            await asyncio.sleep(5)
+
+    async def reassign_worker(
+        self,
+        worker: WorkerState,
+    ):
+        worker.dispatch_task.cancel()
+
+        while not worker.queue.empty():
+            request = await worker.queue.get()
+            await self.queue.put(request)
+            worker.queue.task_done()
+
+        for request in list(worker.active):
+            request.retries += 1
+            await self.queue.put(request)
