@@ -5,3 +5,4 @@ pydantic
 vllm
 torch
 pynvml
+huggingface_hub

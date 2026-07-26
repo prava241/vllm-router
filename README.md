@@ -11,6 +11,49 @@ The system consists of:
 * **Controller** – manages worker registration, heartbeats, request routing, and metrics collection.
 * **Workers** – independent FastAPI processes running a single `AsyncLLMEngine` on a GPU (e.g., Google Colab). Workers register with the controller, report resource utilization, and execute generation requests.
 
+## Running it
+
+This setup assumes the controller runs on your local machine and one or more workers run elsewhere (e.g., a Google Colab GPU runtime), connected over the internet via Cloudflare Tunnel.
+
+### 1. Start the controller locally
+
+```
+pip install -r requirements.txt
+uvicorn src.server:app --host 0.0.0.0 --port 8000
+```
+
+### 2. Expose the controller publicly
+
+Workers need a public URL to reach your local controller. Download [`cloudflared`](https://github.com/cloudflare/cloudflared/releases/latest) and run:
+
+```
+./cloudflared tunnel --url http://localhost:8000
+```
+
+Copy the printed `https://*.trycloudflare.com` URL — this is your `CONTROLLER_URL`.
+
+### 3. Start a worker
+
+On the worker machine (e.g. `notebook.ipynb` in Colab): clone the repo, install requirements, log into Hugging Face (the default model, `meta-llama/Llama-3.1-8B-Instruct`, is gated), download `cloudflared` into `src/worker/`, then run:
+
+```
+cd src/worker
+python worker.py --controller-url <CONTROLLER_URL> --host 0.0.0.0 --port 8000
+```
+
+The worker starts its own Cloudflare tunnel, registers itself with the controller, and begins sending heartbeats.
+
+### 4. Send requests
+
+```
+curl -X POST "http://localhost:8000/sessions?priority=HIGH"
+curl -X POST http://localhost:8000/sessions/<session_id>/request \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt_token_ids": [1, 2, 3], "max_tokens": 64}'
+```
+
+Note: `priority` is passed as a query parameter (`?priority=HIGH`), not a JSON body — FastAPI treats a bare `Enum`/scalar argument that way by default.
+
 ## Experiments
 
 Scheduling policies will be evaluated under two synthetic workloads:

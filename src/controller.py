@@ -85,6 +85,8 @@ class WorkerState:
                 request.dispatch_time = time.time()
                 self.active.add(request)
                 try:
+                    request.user_request.request_id = request.request_id
+                    request.user_request.timestamp = time.time()
                     start = time.perf_counter()
                     r = await client.post(
                         f"{self.address}/generate",
@@ -120,8 +122,15 @@ class Controller:
         self.last_worker_id = 0
         self.alphabet = string.ascii_letters + string.digits
         self.queue = asyncio.Queue() # change this to priority queue
+        self.scheduling_task = None
+        self.heartbeat_task = None
+
+    def start(self):
         self.scheduling_task = asyncio.create_task(
             self.scheduler_loop()
+        )
+        self.heartbeat_task = asyncio.create_task(
+            self.heartbeat_loop()
         )
 
     def register_user(self, priority):
@@ -189,7 +198,7 @@ class Controller:
         def generate_wid():
             return "w_" + ''.join([random.choice(self.alphabet) for _ in range(6)])
         worker_id = generate_wid()
-        while worker_id in self.users:
+        while worker_id in self.workers:
             worker_id = generate_wid()
         self.workers[worker_id] = (WorkerState(self, info))
         return worker_id

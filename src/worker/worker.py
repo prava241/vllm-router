@@ -1,20 +1,20 @@
 # worker.py
 
 import argparse
+import time
 from fastapi import FastAPI, BackgroundTasks
 import httpx
 import asyncio
 from src.models import *
-from src.worker.vllm_engine import (
-    VLLMModel,
-    GenerateRequest,
-)
+from src.worker.vllm_engine import VLLMModel
 import pynvml
 import re
 import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--controller-url")
+parser.add_argument("--host", default="0.0.0.0")
+parser.add_argument("--port", type=int, default=8000)
 args = parser.parse_args()
 CONTROLLER_URL = args.controller_url
 
@@ -90,14 +90,16 @@ async def startup():
 async def register(worker_metrics):
     global WORKER_ID
     worker_payload = WorkerInfo(
-        address=WORKER_ADDRESS, 
-        worker_metrics=worker_metrics
+        address=WORKER_ADDRESS,
+        heartbeat=worker_metrics
     )
     async with httpx.AsyncClient() as client:
-        WORKER_ID = await client.post(
+        r = await client.post(
             f"{CONTROLLER_URL}/workers/register",
             json=worker_payload.model_dump()
         )
+        r.raise_for_status()
+        WORKER_ID = r.json()
 
 async def heartbeat_loop():
     global MISSED_HEARTBEATS
@@ -107,10 +109,8 @@ async def heartbeat_loop():
             async with httpx.AsyncClient(timeout=5.0) as client:
                 r = await client.post(
                     f"{CONTROLLER_URL}/workers/heartbeat",
-                    json={
-                        "worker_id": WORKER_ID,
-                        "heartbeat": get_worker_metrics().model_dump(),
-                    },
+                    params={"worker_id": WORKER_ID},
+                    json=get_worker_metrics().model_dump(),
                 )
 
             r.raise_for_status()
@@ -153,3 +153,7 @@ async def cleanup():
         await CLOUDFLARED_PROCESS.wait()
 
     pynvml.nvmlShutdown()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host=args.host, port=args.port)

@@ -5,7 +5,14 @@ from src.controller import Controller
 from pydantic import BaseModel
 from src.models import *
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    controller.start()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 controller = Controller()
 
 # Session Management, User Requests
@@ -15,7 +22,7 @@ async def register_user(priority: Priority):
     return controller.register_user(priority)
 
 @app.post("/sessions/{id}/request")
-async def request(id, body):
+async def request(id, body: UserRequest):
     # this should return a response and metrics (latency, queue time, generation time)
     return await controller.handle_request(
         id,

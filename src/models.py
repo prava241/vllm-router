@@ -14,7 +14,7 @@ class Priority(Enum):
     HIGH = 3
 
 class Heartbeat(BaseModel):
-    worker_id: int
+    worker_id: str
 
     mem_used: float
     mem_total: float
@@ -26,7 +26,8 @@ class WorkerInfo(BaseModel):
     heartbeat: Heartbeat
 
 class UserRequest(BaseModel):
-    # timestamp: float
+    request_id: str | None = None
+    timestamp: float | None = None
 
     prompt_token_ids: list[int]
     prompt: str | None = None
