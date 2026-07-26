@@ -80,10 +80,13 @@ async def startup():
     HANDLE = pynvml.nvmlDeviceGetHandleByIndex(0)
 
     await MODEL.load()
+    print("loaded model\n")
 
     WORKER_ADDRESS = await start_cloudflared()
+    print(f"worker address: {WORKER_ADDRESS}\n")
 
     await register(get_worker_metrics())
+    print(f"registered\n")
 
     asyncio.create_task(heartbeat_loop())
 
