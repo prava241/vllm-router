@@ -3,7 +3,7 @@ import time
 from vllm import AsyncEngineArgs, AsyncLLMEngine
 from vllm.sampling_params import SamplingParams
 
-from src.models import *
+from models import *
 
 
 class VLLMModel:

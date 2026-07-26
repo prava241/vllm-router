@@ -5,8 +5,8 @@ import time
 from fastapi import FastAPI, BackgroundTasks
 import httpx
 import asyncio
-from src.models import *
-from src.worker.vllm_engine import VLLMModel
+from models import *
+from worker.vllm_engine import VLLMModel
 import pynvml
 import re
 import subprocess
