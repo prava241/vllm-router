@@ -61,6 +61,7 @@ class GenerationMetrics(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    num_cached_tokens: int | None = None
 
 class GenerateResponse(BaseModel):
     request_id: str

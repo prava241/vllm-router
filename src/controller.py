@@ -2,6 +2,7 @@
 
 import random, string
 from src.models import *
+from src.policies import POLICIES
 import httpx
 import asyncio
 from dataclasses import dataclass, field
@@ -116,7 +117,14 @@ class WorkerState:
         return (time.time() - self.last_heartbeat) < timeout
 
 class Controller:
-    def __init__(self):
+    def __init__(self, policy: str = "random"):
+        if policy not in POLICIES:
+            raise ValueError(
+                f"Unknown policy '{policy}', available: {list(POLICIES)}"
+            )
+        self.policy_name = policy
+        self._policy = POLICIES[policy]()
+
         self.users = {}
         self.workers: dict[str, WorkerState] = {}
         self.last_worker_id = 0
@@ -176,9 +184,7 @@ class Controller:
             # resource allocation, etc. here
 
     def choose_worker(self, request):
-        return random.choice(
-            list(self.workers.values())
-        )
+        return self._policy.choose_worker(request, self.workers)
 
     async def handle_failure(
         self,

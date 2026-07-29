@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# experiment run outputs (experiments/run_experiment.py --output)
+*.csv
+*.summary.json

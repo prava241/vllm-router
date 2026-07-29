@@ -34,7 +34,7 @@ Copy the printed `https://*.trycloudflare.com` URL — this is your `CONTROLLER_
 
 ### 3. Start a worker
 
-On the worker machine (e.g. `notebook.ipynb` in Colab): clone the repo, install requirements, log into Hugging Face (the default model, `meta-llama/Llama-3.1-8B-Instruct`, is gated), download `cloudflared` into `src/worker/`, then run:
+On the worker machine (e.g. `notebook.ipynb` in Colab): clone the repo, install requirements (the default model, `Qwen/Qwen2.5-7B-Instruct`, is ungated so no Hugging Face login is required), download `cloudflared` into `src/worker/`, then run:
 
 ```
 cd src/worker

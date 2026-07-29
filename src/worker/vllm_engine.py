@@ -86,5 +86,6 @@ class VLLMModel:
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=prompt_tokens + completion_tokens,
+                num_cached_tokens=final_output.num_cached_tokens,
             ),
         )

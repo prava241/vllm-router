@@ -21,7 +21,7 @@ CONTROLLER_URL = args.controller_url
 WORKER_ID = ""
 WORKER_ADDRESS = None
 MODEL = VLLMModel(
-    "meta-llama/Llama-3.1-8B-Instruct"
+    "Qwen/Qwen2.5-7B-Instruct"
 )
 HANDLE = None
 
@@ -78,6 +78,7 @@ async def startup():
 
     pynvml.nvmlInit()
     HANDLE = pynvml.nvmlDeviceGetHandleByIndex(0)
+    print("hello from worker\n")
 
     await MODEL.load()
     print("loaded model\n")

@@ -6,3 +6,4 @@ vllm
 torch
 pynvml
 huggingface_hub
+transformers
