@@ -3,6 +3,6 @@ uvicorn[standard]
 httpx
 pydantic
 huggingface_hub
-transformers
-nvidia-ml-py==12.570.86
+transformers==4.55.4
+nvidia-ml-py>=12.560.30
 vllm==0.10.0
