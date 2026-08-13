@@ -2,8 +2,7 @@ fastapi
 uvicorn[standard]
 httpx
 pydantic
-vllm
-torch
-pynvml
 huggingface_hub
 transformers
+nvidia-ml-py==12.570.86
+vllm==0.10.0
