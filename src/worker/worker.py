@@ -21,7 +21,7 @@ CONTROLLER_URL = args.controller_url
 WORKER_ID = ""
 WORKER_ADDRESS = None
 MODEL = VLLMModel(
-    "Qwen/Qwen2.5-7B-Instruct"
+    "Qwen/Qwen2.5-7B-Instruct-AWQ"
 )
 HANDLE = None
 

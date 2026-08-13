@@ -15,10 +15,16 @@ class VLLMModel:
         args = AsyncEngineArgs(
             model=self.model_name,
             tensor_parallel_size=1,
+            quantization="awq",
             gpu_memory_utilization=0.9,
+            max_model_len=8192,
+            dtype="half",
+            enforce_eager=True,
         )
 
+        print(f"Loading {self.model_name}...")
         self.engine = AsyncLLMEngine.from_engine_args(args)
+        print("vLLM engine loaded.")
 
     async def generate(
         self,
@@ -57,6 +63,8 @@ class VLLMModel:
 
         end = time.perf_counter()
 
+        #TODO: error handling here
+
         completion = final_output.outputs[0]
 
         prompt_tokens = len(request.prompt_token_ids)
@@ -86,6 +94,10 @@ class VLLMModel:
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=prompt_tokens + completion_tokens,
-                num_cached_tokens=final_output.num_cached_tokens,
+                num_cached_tokens=getattr(
+                    final_output,
+                    "num_cached_tokens",
+                    0,
+                ),
             ),
         )
